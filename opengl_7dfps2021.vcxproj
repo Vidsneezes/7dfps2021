@@ -151,16 +151,18 @@
   <ItemGroup>
     <None Include="res\shaders\Basic.shader" />
     <None Include="res\shaders\fragment.shader" />
+    <None Include="res\shaders\fragment2d.shader" />
     <None Include="res\shaders\vertex.shader" />
+    <None Include="res\shaders\vertex2d.shader" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Shader.h" />
     <ClInclude Include="src\stb_image.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\awesomeface.png" />
-    <Image Include="res\MainSpriteSheet.png" />
-    <Image Include="res\wall.jpg" />
+    <Image Include="res\images\awesomeface.png" />
+    <Image Include="res\images\MainSpriteSheet.png" />
+    <Image Include="res\images\wall.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

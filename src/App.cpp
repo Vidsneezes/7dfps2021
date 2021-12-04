@@ -22,10 +22,12 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void generateCubeVertexData();
 void generateBillboardVertexData();
+void generateQuadVertexData();
 void createTextureData(Shader* _shader);
 void RenderEnvironmentCubes(Shader* shader, glm::vec3 walls[], glm::vec3 floors[]);
 void RenderBillboards(Shader* shader, glm::vec3 billboards[], glm::vec3 pos);
 void UpdateDrawEnemy(Shader* shader);
+void Render2dSprite(Shader* shader);
 float IntersectCameraRaySphere(const glm::vec3& center, float radius);
 
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -51,7 +53,7 @@ bool firstMouse = true;
 
 //texture data
 unsigned int texture1, texture2;
-unsigned int billboardVAO, cubeVAO;
+unsigned int billboardVAO, cubeVAO, quadVAO;
 
 Entity enemy;
 
@@ -97,6 +99,8 @@ int main(void)
     glEnable(GL_DEPTH_TEST);
 
     Shader mainShader("res/shaders/vertex.shader", "res/shaders/fragment.shader");
+    Shader shader2d("res/shaders/vertex2d.shader", "res/shaders/fragment2d.shader");
+
 
     glm::vec3 wallPositions[] = {
     glm::vec3(-1.0f,  0.0f,  1.0f),
@@ -140,6 +144,7 @@ int main(void)
     
     generateCubeVertexData();
     generateBillboardVertexData();
+    generateQuadVertexData();
 
 
     while (!glfwWindowShouldClose(window))
@@ -158,14 +163,17 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);// state using
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
+
         mainShader.use();
+        mainShader.setInt("texture1", 0);
+
         UpdateDrawEnemy(&mainShader);
         mainShader.setVec2("texCoordOffset", 0.0f, 0.0f);
         RenderEnvironmentCubes(&mainShader, wallPositions, floorPositions);
         
         //2d scene
-        projection = glm::perspective(glm::radians(fov), s_width / s_height, 0.1f, 100.0f);
-
+      
+        Render2dSprite(&shader2d);
 
 
         glfwSwapBuffers(window);
@@ -257,6 +265,35 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
         fov = 20;
     if (fov > 100)
         fov = 100;
+}
+
+
+void generateQuadVertexData() 
+{
+    //reference quad creationg code https://learnopengl.com/In-Practice/2D-Game/Rendering-Sprites
+    unsigned int VBO;
+    float vertices[] = {
+        // pos      // tex
+        0.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+
+        0.0f, 1.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 0.0f, 1.0f, 0.0f
+    };
+
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &VBO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindVertexArray(quadVAO);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 void generateBillboardVertexData() 
@@ -393,8 +430,6 @@ void createTextureData(Shader* _shader)
     stbi_image_free(data);
 
 
-    _shader->use();
-    _shader->setInt("texture1", 0);
 }
 
 void UpdateDrawEnemy(Shader* shader) 
@@ -447,6 +482,28 @@ void RenderBillboards(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
+void Render2dSprite(Shader* shader) 
+{
+
+    shader->use();
+    shader->setInt("texture1", 0);
+    shader->setVec2("texCoordOffset", 0.0f, 0.0f);
+
+
+    projection = glm::ortho(0.0f, s_width, 0.0f, s_height, -1.0f, 1.0f);
+    model = glm::mat4(1.0f);
+
+    unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
+    unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
+
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    model = glm::translate(model, glm::vec3(s_width * 0.5f - 128, 0.5f, 0.0f));
+    model = glm::scale(model, glm::vec3(100.0f, 100.0f, 1.0f));
+
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
 
 void RenderEnvironmentCubes(Shader *shader, glm::vec3 walls[], glm::vec3 floor[])
 {
