@@ -274,13 +274,13 @@ void generateQuadVertexData()
     unsigned int VBO;
     float vertices[] = {
         // pos      // tex
-        0.0f, 1.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0625f,
+        1.0f, 0.0f, 0.0625f, 0.0f,
         0.0f, 0.0f, 0.0f, 0.0f,
 
-        0.0f, 1.0f, 0.0f, 1.0f,
-        1.0f, 1.0f, 1.0f, 1.0f,
-        1.0f, 0.0f, 1.0f, 0.0f
+        0.0f, 1.0f, 0.0f, 0.0625f,
+        1.0f, 1.0f, 0.0625f, 0.0625f,
+        1.0f, 0.0f, 0.0625f, 0.0f
     };
 
     glGenVertexArrays(1, &quadVAO);
@@ -497,8 +497,8 @@ void Render2dSprite(Shader* shader)
     unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
 
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    model = glm::translate(model, glm::vec3(s_width * 0.5f - 128, 0.5f, 0.0f));
-    model = glm::scale(model, glm::vec3(100.0f, 100.0f, 1.0f));
+    model = glm::translate(model, glm::vec3(s_width * 0.5f - 24.0f, s_height * 0.5f - 24.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(48.0f, 48.0f, 1.0f));
 
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glBindVertexArray(quadVAO);
