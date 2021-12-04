@@ -13,6 +13,7 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
+
 # Mono auto generated files
 mono_crash.*
 
@@ -32,7 +33,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-[Rr]es/
+[Rr]es/images
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

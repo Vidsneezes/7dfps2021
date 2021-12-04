@@ -38,6 +38,8 @@ glm::mat4 model;
 glm::mat4 view;
 glm::mat4 projection;
 
+float s_width = 640.0f, s_height = 360.0f;
+
 float yaw = -90.0f, pitch = 0.0f;
 float fov = 60.0f;
 
@@ -67,7 +69,7 @@ int main(void)
 
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(800, 600, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(s_width, s_height, "Hello World", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -90,7 +92,7 @@ int main(void)
     }
     std::cout << glGetString(GL_VERSION) << std::endl;
 
-    glViewport(0, 0, 800, 600);
+    glViewport(0, 0, s_width, s_height);
 
     glEnable(GL_DEPTH_TEST);
 
@@ -148,24 +150,22 @@ int main(void)
 
         processInput(window);
 
+        // 3d scene
         model = glm::mat4(1.0f);
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-        projection = glm::perspective(glm::radians(fov), 800.0f / 600.0f, 0.1f, 100.0f);
-
+        projection = glm::perspective(glm::radians(fov), s_width / s_height, 0.1f, 100.0f);
         glClearColor(0.3f, 0.45f, 0.21f, 1.0f); //state setting
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);// state using
-
-
-
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
-
         mainShader.use();
-        
         UpdateDrawEnemy(&mainShader);
         mainShader.setVec2("texCoordOffset", 0.0f, 0.0f);
         RenderEnvironmentCubes(&mainShader, wallPositions, floorPositions);
         
+        //2d scene
+        projection = glm::perspective(glm::radians(fov), s_width / s_height, 0.1f, 100.0f);
+
 
 
         glfwSwapBuffers(window);
@@ -380,7 +380,7 @@ void createTextureData(Shader* _shader)
     int width, height, nrChannels;
     stbi_set_flip_vertically_on_load(true);
     //texture 1
-    unsigned char* data = stbi_load("res/MainSpriteSheet.png", &width, &height, &nrChannels, 0);
+    unsigned char* data = stbi_load("res/images/MainSpriteSheet.png", &width, &height, &nrChannels, 0);
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
