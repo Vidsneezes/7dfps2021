@@ -14,6 +14,7 @@ struct Entity {
     glm::vec3 position;
     float hitTime;
     int life;
+    int spriteId;
 };
 
 void processInput(GLFWwindow* window);
@@ -56,7 +57,7 @@ bool firstMouse = true;
 unsigned int texture1, texture2;
 unsigned int billboardVAO, cubeVAO, quadVAO;
 
-Entity enemy;
+Entity enemy[10];
 
 int main(void)
 {
@@ -137,9 +138,14 @@ int main(void)
          glm::vec3(0.0f,  -0.25f,  0.0f),
     };
 
-    enemy.position = glm::vec3(0.0f, 0.0f, 0.0f);
-    enemy.hitTime = -1.0f;
-    enemy.life = 4;
+    unsigned int enemyCounter = 0;
+    for (enemyCounter = 0; enemyCounter < 10; enemyCounter++) {
+        enemy[enemyCounter].position = glm::vec3(0.0f, 0.0f, -(float)enemyCounter * 0.25f);
+        enemy[enemyCounter].hitTime = -1.0f;
+        enemy[enemyCounter].life = 4;
+        enemy[enemyCounter].spriteId = 4 + rand() % 7;
+    }
+ 
 
     createTextureData(&mainShader);
     
@@ -160,7 +166,7 @@ int main(void)
         model = glm::mat4(1.0f);
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         projection = glm::perspective(glm::radians(fov), s_width / s_height, 0.1f, 100.0f);
-        glClearColor(0.3f, 0.45f, 0.21f, 1.0f); //state setting
+        glClearColor(0.05f, 0.07f, 0.11f, 1.0f); //state setting
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);// state using
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
@@ -218,13 +224,18 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        float van = IntersectCameraRaySphere(enemy.position, 0.2f);
-        if (van > 0.0f)
+        for (unsigned int i = 0; i < 10; i++)
         {
-            enemy.hitTime = glfwGetTime() + 0.25f;
-            enemy.life -= 1;
-            std::cout << "mouse clicked" << std::endl;
+            float van = IntersectCameraRaySphere(enemy[i].position, 0.2f);
+            if (van > 0.0f && enemy[i].hitTime < 0.0f)
+            {
+                enemy[i].hitTime = glfwGetTime() + 0.25f;
+                enemy[i].life -= 1;
+                return;
+            }
         }
+
+      
     }
 }
 
@@ -438,23 +449,32 @@ void createTextureData(Shader* _shader)
 
 void UpdateDrawEnemy(Shader* shader) 
 {
-    float xTexOff = 0.0f, yTexOff = 4.0f * 0.0625f;
-
-    if (enemy.life > 0)
-    {
-        enemy.position.x = glm::sin(glfwGetTime() * 1.5f) * 0.1f;
-
-
-        if (glfwGetTime() - enemy.hitTime < 0) {
-            xTexOff = 0.0625f;
-        }
-    }
-    else {
-        xTexOff = 0.0625f * 2.0f;
-    }
     
-    shader->setVec2("texCoordOffset", xTexOff, yTexOff);
-    RenderEntities(shader, NULL, enemy.position);
+    for (unsigned int i = 0; i < 10; i++)
+    {
+
+        float xTexOff = 0.0f, yTexOff = enemy[i].spriteId* 0.0625f;
+
+        if (enemy[i].life > 0)
+        {
+            enemy[i].position.x += 0.1f * deltaTime;
+
+
+            if (glfwGetTime() - enemy[i].hitTime < 0) {
+                xTexOff = 0.0625f;
+            }
+            else {
+                enemy[i].hitTime = -1.0f;
+            }
+        }
+        else {
+            xTexOff = 0.0625f * 2.0f;
+        }
+
+        shader->setVec2("texCoordOffset", xTexOff, yTexOff);
+        RenderEntities(shader, NULL, enemy[i].position);
+    }
+   
 
 }
 
@@ -479,8 +499,8 @@ void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
     model[1] = glm::vec4(cameraUp, 0);
     model[2] = glm::vec4(look, 0);
 
-    model = glm::translate(model, glm::vec3(0.0f, 0.125f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.125f, 0.125f, 1.0f));
+    model = glm::translate(model, glm::vec3(0.0f, 0.16f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.16f, 0.16f, 1.0f));
 
 
 
@@ -525,57 +545,64 @@ void RenderRoom(Shader* shader) {
     shader->setVec2("texCoordOffset", xTexOff, yTexOff);
     for (j = 0; j < 2; j++)
     {
-
         for (i = 0; i < 7; i++)
         {
-            model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f+0.5f*j, 0.25f));
+            if (i != 3 || j > 0) {
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, 0.25f));
 
-            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-            glBindVertexArray(billboardVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+                glBindVertexArray(billboardVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            }
         }
 
         for (i = 0; i < 7; i++)
         {
-            model = glm::mat4(1.0f);
-            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            if (i != 3 || j > 0) {
+                model = glm::mat4(1.0f);
+                model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.25f));
+                model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.25f));
 
-            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-            glBindVertexArray(billboardVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+                glBindVertexArray(billboardVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            }
         }
 
         for (i = 0; i < 7; i++)
         {
-            model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.5f * 7 + 0.25f));
+            if (i != 3 || j > 0) {
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.5f * 7 + 0.25f));
 
-            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-            glBindVertexArray(billboardVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+                glBindVertexArray(billboardVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            }
         }
 
         for (i = 0; i < 7; i++)
         {
-            model = glm::mat4(1.0f);
-            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            if (i != 3 || j > 0) {
+                model = glm::mat4(1.0f);
+                model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, 0.5f * 7 - 0.25f));
+                model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, 0.5f * 7 - 0.25f));
 
-            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+                model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-            glBindVertexArray(billboardVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+                glBindVertexArray(billboardVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            }
         }
     }
 }
