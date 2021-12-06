@@ -17,6 +17,12 @@ struct Entity {
     int spriteId;
 };
 
+struct Projectile {
+    glm::vec3 position;
+    glm::vec3 direction;
+    int alive;
+};
+
 void processInput(GLFWwindow* window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -28,11 +34,14 @@ void createTextureData(Shader* _shader);
 void RenderEnvironmentCubes(Shader* shader, glm::vec3 walls[], glm::vec3 floors[]);
 void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos);
 void UpdateDrawEnemy(Shader* shader);
+void UpdateDrawProjectiles(Shader* shader);
+void CollideProjectileEntities();
 void Render2dSprite(Shader* shader);
+void RenderUISprite(Shader* shader, float xOffset, float yOffset, glm::vec3 position);
 float IntersectCameraRaySphere(const glm::vec3& center, float radius);
 void RenderRoom(Shader* shader);
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 lastCameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 
@@ -47,6 +56,14 @@ float s_width = 640.0f, s_height = 360.0f;
 float yaw = -90.0f, pitch = 0.0f;
 float fov = 60.0f;
 
+float roomZmin = 0.25f;
+float roomZmax = -3.25f;
+
+
+float roomXmin = -0.25f;
+float roomXmax = 3.25f;
+
+
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
@@ -58,6 +75,8 @@ unsigned int texture1, texture2;
 unsigned int billboardVAO, cubeVAO, quadVAO;
 
 Entity enemy[10];
+Projectile projectiles[10];
+
 
 int main(void)
 {
@@ -140,10 +159,18 @@ int main(void)
 
     unsigned int enemyCounter = 0;
     for (enemyCounter = 0; enemyCounter < 10; enemyCounter++) {
-        enemy[enemyCounter].position = glm::vec3(0.0f, 0.0f, -(float)enemyCounter * 0.25f);
+        float xPos = 0.5f * (float)(rand() % 7);
+        float yPos = -0.5f * (float)(rand() % 7);
+        enemy[enemyCounter].position = glm::vec3(xPos, 0.0f, yPos);
         enemy[enemyCounter].hitTime = -1.0f;
         enemy[enemyCounter].life = 4;
         enemy[enemyCounter].spriteId = 4 + rand() % 7;
+    }
+
+    for (enemyCounter = 0; enemyCounter < 10; enemyCounter++)
+    {
+        projectiles[enemyCounter].position = glm::vec3(0.0f, 0.0f, 0.0f);
+        projectiles[enemyCounter].alive = 0;
     }
  
 
@@ -166,6 +193,9 @@ int main(void)
         model = glm::mat4(1.0f);
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         projection = glm::perspective(glm::radians(fov), s_width / s_height, 0.1f, 100.0f);
+
+        CollideProjectileEntities();
+
         glClearColor(0.05f, 0.07f, 0.11f, 1.0f); //state setting
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);// state using
         glActiveTexture(GL_TEXTURE0);
@@ -175,7 +205,7 @@ int main(void)
         mainShader.setInt("texture1", 0);
 
         UpdateDrawEnemy(&mainShader);
-
+        UpdateDrawProjectiles(&mainShader);
 
         mainShader.setVec2("texCoordOffset", 0.0f, 0.0f);
         RenderRoom(&mainShader);
@@ -203,17 +233,36 @@ void processInput(GLFWwindow* window)
         glfwSetWindowShouldClose(window, true);
     }
 
+    float deltaX = 0;
+    float deltaZ = 0;
+
     float cameraSpeed = 1.7f * deltaTime;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraPos += cameraSpeed * cameraFront;
+        deltaZ = cameraSpeed;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraPos -= cameraSpeed * cameraFront;
+        deltaZ = -cameraSpeed;
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        deltaX = -cameraSpeed;
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        deltaX = cameraSpeed;
+
+    float lastX = cameraPos.x;
+    float lastZ = cameraPos.z;
 
 
+    
+
+
+    cameraPos += cameraFront * deltaZ;
+    cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * deltaX;
+
+    if ((cameraPos).z > roomZmin || (cameraPos).z < roomZmax) {
+        cameraPos.z = lastZ;
+    }
+
+    if ((cameraPos).x < roomXmin || (cameraPos).x > roomXmax) {
+        cameraPos.x = lastX;
+    }
 
     cameraPos.y = 0.25f;
 //    cameraPos.y = 0.0f;
@@ -226,16 +275,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     {
         for (unsigned int i = 0; i < 10; i++)
         {
-            float van = IntersectCameraRaySphere(enemy[i].position, 0.2f);
-            if (van > 0.0f && enemy[i].hitTime < 0.0f)
+            if (projectiles[i].alive == 0)
             {
-                enemy[i].hitTime = glfwGetTime() + 0.25f;
-                enemy[i].life -= 1;
-                return;
+                projectiles[i].position = cameraPos + cameraFront * 0.1f + cameraUp * -0.06f;
+                projectiles[i].alive = 1;
+                projectiles[i].direction = cameraFront;
+                break;
             }
         }
-
-      
     }
 }
 
@@ -457,7 +504,7 @@ void UpdateDrawEnemy(Shader* shader)
 
         if (enemy[i].life > 0)
         {
-            enemy[i].position.x += 0.1f * deltaTime;
+            //enemy[i].position.x += 0.1f * deltaTime;
 
 
             if (glfwGetTime() - enemy[i].hitTime < 0) {
@@ -474,8 +521,6 @@ void UpdateDrawEnemy(Shader* shader)
         shader->setVec2("texCoordOffset", xTexOff, yTexOff);
         RenderEntities(shader, NULL, enemy[i].position);
     }
-   
-
 }
 
 void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
@@ -503,19 +548,64 @@ void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
     model = glm::scale(model, glm::vec3(0.16f, 0.16f, 1.0f));
 
 
-
-
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glBindVertexArray(billboardVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
+void UpdateDrawProjectiles(Shader* shader)
+{
+    for (unsigned int i = 0; i < 10; i++)
+    {
+        if (projectiles[i].alive == 1)
+        {
+            float xTexOff = 0.0f, yTexOff = 3* 0.0625f;
+            shader->setVec2("texCoordOffset", xTexOff, yTexOff);
+
+            projectiles[i].position += glm::normalize(projectiles[i].direction) * 3.0f * deltaTime;
+
+            if (projectiles[i].position.z > roomZmin 
+                || projectiles[i].position.z < roomZmax 
+                || projectiles[i].position.x < roomXmin 
+                || projectiles[i].position.x > roomXmax
+                || projectiles[i].position.y < -0.2f
+                || projectiles[i].position.y > 3.0f)
+            {
+                projectiles[i].alive = 0;
+                continue;
+            }
+
+            model = glm::mat4(1.0f);
+
+            unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
+            unsigned int viewLoc = glGetUniformLocation(shader->ID, "view");
+            unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
+
+            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+            glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+            glm::vec3 look = glm::normalize(cameraPos - projectiles[i].position);
+            glm::vec3 right = glm::cross(cameraUp, look);
+            model = glm::translate(model, projectiles[i].position);
+
+            model[0] = glm::vec4(right, 0);
+            model[1] = glm::vec4(cameraUp, 0);
+            model[2] = glm::vec4(look, 0);
+
+            model = glm::translate(model, glm::vec3(0.0f, 0.025f, 0.0f));
+            model = glm::scale(model, glm::vec3(0.07f, 0.07f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+    }
+}
+
+
 void RenderRoom(Shader* shader) {
     float xTexOff = 0.0f, yTexOff = 15.0f * 0.0625f;
     shader->setVec2("texCoordOffset", xTexOff, yTexOff);
-
-
-
 
     unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
     unsigned int viewLoc = glGetUniformLocation(shader->ID, "view");
@@ -612,23 +702,38 @@ void Render2dSprite(Shader* shader)
 
     shader->use();
     shader->setInt("texture1", 0);
-    shader->setVec2("texCoordOffset", 0.0f, 0.0f);
-
 
     projection = glm::ortho(0.0f, s_width, 0.0f, s_height, -1.0f, 1.0f);
-    model = glm::mat4(1.0f);
 
-    unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
     unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
 
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-    model = glm::translate(model, glm::vec3(s_width * 0.5f - 24.0f, s_height * 0.5f - 24.0f, 0.0f));
+
+    RenderUISprite(shader, 0.0f, 0.0f, glm::vec3(s_width * 0.5f - 24.0f, s_height * 0.5f - 24.0f, 0.0f));
+
+    for (unsigned int i = 0; i < 3; i++)
+    {
+        RenderUISprite(shader, 0.0625f, 0.0f, glm::vec3(48.0f * i, 0.0f, 0.0f));
+    }
+
+}
+
+void RenderUISprite(Shader* shader, float xOffset, float yOffset, glm::vec3 position)
+{
+    shader->setVec2("texCoordOffset", xOffset, yOffset);
+
+    model = glm::mat4(1.0f);
+    model = glm::translate(model, position);
     model = glm::scale(model, glm::vec3(48.0f, 48.0f, 1.0f));
+
+    unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
 
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
+
+
 
 void RenderEnvironmentCubes(Shader *shader, glm::vec3 walls[], glm::vec3 floor[])
 {
@@ -666,6 +771,48 @@ void RenderEnvironmentCubes(Shader *shader, glm::vec3 walls[], glm::vec3 floor[]
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
+
+void CollideProjectileEntities()
+{
+    float sphere1Rad = 0.15f * 0.15f;
+    float sphere2Rad = 0.2f*0.2f;
+
+    float disX = 0;
+    float disY = 0;
+    float disZ = 0;
+
+    float sqrDis = 0;
+
+
+    for (unsigned int i = 0; i < 10; i++)
+    {
+        if (projectiles[i].alive == 1)
+        {
+            for (unsigned int j = 0; j < 10; j++)
+            {
+                if (enemy[j].life > 0) {
+                    disX = projectiles[i].position.x - enemy[j].position.x;
+                    disY = projectiles[i].position.y - enemy[j].position.y;
+                    disZ = projectiles[i].position.z - enemy[j].position.z;
+
+                    disX *= disX;
+                    disY *= disY;
+                    disZ *= disZ;
+
+                    sqrDis = (disX + disY + disZ);
+
+                    if ((sphere1Rad + sphere2Rad) > sqrDis)
+                    {
+                        projectiles[i].alive = 0;
+                        enemy[j].hitTime = glfwGetTime() + 0.25f;
+                        enemy[j].life -= 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 float IntersectCameraRaySphere(const glm::vec3& center, float radius)
 {
