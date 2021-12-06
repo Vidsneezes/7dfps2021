@@ -25,10 +25,11 @@ void generateBillboardVertexData();
 void generateQuadVertexData();
 void createTextureData(Shader* _shader);
 void RenderEnvironmentCubes(Shader* shader, glm::vec3 walls[], glm::vec3 floors[]);
-void RenderBillboards(Shader* shader, glm::vec3 billboards[], glm::vec3 pos);
+void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos);
 void UpdateDrawEnemy(Shader* shader);
 void Render2dSprite(Shader* shader);
 float IntersectCameraRaySphere(const glm::vec3& center, float radius);
+void RenderRoom(Shader* shader);
 
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -168,8 +169,11 @@ int main(void)
         mainShader.setInt("texture1", 0);
 
         UpdateDrawEnemy(&mainShader);
+
+
         mainShader.setVec2("texCoordOffset", 0.0f, 0.0f);
-        RenderEnvironmentCubes(&mainShader, wallPositions, floorPositions);
+        RenderRoom(&mainShader);
+        //RenderEnvironmentCubes(&mainShader, wallPositions, floorPositions);
         
         //2d scene
       
@@ -300,10 +304,10 @@ void generateBillboardVertexData()
 {
     float vertices[] = {
         // positions          // texture coords
-         0.125f,  0.25f, 0.0f,   0.0625f, 0.6875f, // top right
-         0.125f,  0.0f, 0.0f,   0.0625f, 0.6875f - 0.0625f, // bottom right
-        -0.125f,  0.0f, 0.0f,   0.0f, 0.6875f - 0.0625f, // bottom left
-        -0.125f,  0.25f, 0.0f,   0.0f, 0.6875f  // top left 
+         1.0f,  1.0f, 0.0f,   0.0625f, 0.0625f, // top right
+         1.0f,  -1.0f, 0.0f,   0.0625f, 0.0f, // bottom right
+        -1.0f,  -1.0f, 0.0f,   0.0f, 0.0f, // bottom left
+        -1.0f,  1.0f, 0.0f,   0.0f, 0.0625f  // top left 
     };
     unsigned int indices[] = {
         0, 1, 3, // first triangle
@@ -434,9 +438,7 @@ void createTextureData(Shader* _shader)
 
 void UpdateDrawEnemy(Shader* shader) 
 {
-
-
-    float xTexOff = 0.0f, yTexOff = 0.0f;
+    float xTexOff = 0.0f, yTexOff = 4.0f * 0.0625f;
 
     if (enemy.life > 0)
     {
@@ -452,11 +454,11 @@ void UpdateDrawEnemy(Shader* shader)
     }
     
     shader->setVec2("texCoordOffset", xTexOff, yTexOff);
-    RenderBillboards(shader, NULL, enemy.position);
+    RenderEntities(shader, NULL, enemy.position);
 
 }
 
-void RenderBillboards(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
+void RenderEntities(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
 {
     model = glm::mat4(1.0f);
 
@@ -472,14 +474,110 @@ void RenderBillboards(Shader* shader, glm::vec3 billboards[], glm::vec3 pos)
     model = glm::translate(model, pos);
 
 
+
     model[0] = glm::vec4(right, 0);
     model[1] = glm::vec4(cameraUp, 0);
     model[2] = glm::vec4(look, 0);
+
+    model = glm::translate(model, glm::vec3(0.0f, 0.125f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.125f, 0.125f, 1.0f));
+
+
 
 
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
     glBindVertexArray(billboardVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
+void RenderRoom(Shader* shader) {
+    float xTexOff = 0.0f, yTexOff = 15.0f * 0.0625f;
+    shader->setVec2("texCoordOffset", xTexOff, yTexOff);
+
+
+
+
+    unsigned int modelLoc = glGetUniformLocation(shader->ID, "model");
+    unsigned int viewLoc = glGetUniformLocation(shader->ID, "view");
+    unsigned int projectionLoc = glGetUniformLocation(shader->ID, "projection");
+
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    unsigned int i = 0, j = 0;
+
+    for (j = 0; j < 7; j++)
+    {
+        for (i = 0; i < 7; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            model = glm::translate(model, glm::vec3((float)i * 0.5f,(float)j *0.5f, 0.0f));
+
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+    }
+
+    yTexOff = 14.0f * 0.0625f;
+    shader->setVec2("texCoordOffset", xTexOff, yTexOff);
+    for (j = 0; j < 2; j++)
+    {
+
+        for (i = 0; i < 7; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f+0.5f*j, 0.25f));
+
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+
+        for (i = 0; i < 7; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.25f));
+
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+
+        for (i = 0; i < 7; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, -0.5f * 7 + 0.25f));
+
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+
+        for (i = 0; i < 7; i++)
+        {
+            model = glm::mat4(1.0f);
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+            model = glm::translate(model, glm::vec3((float)i * 0.5f, 0.25f + 0.5f * j, 0.5f * 7 - 0.25f));
+
+            model = glm::scale(model, glm::vec3(0.25f, 0.25f, 1.0f));
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            glBindVertexArray(billboardVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+    }
 }
 
 void Render2dSprite(Shader* shader) 
